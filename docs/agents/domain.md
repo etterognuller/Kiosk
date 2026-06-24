@@ -16,4 +16,4 @@ There is a single global context — there is **no** `CONTEXT-MAP.md` and no per
 
 ## Setup status
 
-> Neither `CONTEXT.md` nor `docs/adr/` exists yet. Create `CONTEXT.md` when the game's domain language stabilises, and add ADRs under `docs/adr/` as architectural decisions are made.
+> `CONTEXT.md` exists at the repo root (domain spine agreed 2026-06-24) and `docs/adr/` holds ADR-0001 (Godot 4.7 + GDScript). Keep `CONTEXT.md` current as open threads resolve, and add ADRs under `docs/adr/` as further architectural decisions are made. See also `docs/ROADMAP.md`.
