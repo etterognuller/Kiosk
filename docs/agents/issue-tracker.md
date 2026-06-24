@@ -23,10 +23,4 @@ Skills that read from or write to the issue tracker (`to-issues`, `triage`, `to-
 
 ## Setup status
 
-> **Not yet wired up.** As of setup, this repo has **no git remote configured** and is not yet pushed to GitHub. Before the `gh`-based workflow will work you need to:
->
-> 1. Initialise git if needed: `git init`
-> 2. Create the GitHub repo and remote, e.g. `gh repo create` (requires `gh auth login` first).
-> 3. Push: `git push -u origin main`
->
-> Until then, skills that call `gh` against this repo will fail. Update or delete this note once the remote exists.
+Remote is configured and pushed to GitHub; the `gh` CLI is installed and authenticated. The `gh`-based workflow is live. Remaining one-time step: create the five triage labels (see `triage-labels.md`).
