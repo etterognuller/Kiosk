@@ -1,0 +1,21 @@
+<svg width="128" height="128" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <!-- Kiosk placeholder icon: a tiny shop with a striped awning. Bit-style, CC0. -->
+  <rect width="16" height="16" fill="#1d2b34"/>
+  <!-- shop body -->
+  <rect x="3" y="7" width="10" height="7" fill="#e6d2a8"/>
+  <rect x="3" y="13" width="10" height="1" fill="#9c8458"/>
+  <!-- door -->
+  <rect x="7" y="10" width="2" height="4" fill="#6b4b2a"/>
+  <!-- window -->
+  <rect x="4" y="9" width="2" height="2" fill="#7ec8e3"/>
+  <rect x="10" y="9" width="2" height="2" fill="#7ec8e3"/>
+  <!-- striped awning -->
+  <rect x="2" y="5" width="2" height="2" fill="#d64545"/>
+  <rect x="4" y="5" width="2" height="2" fill="#f2f2f2"/>
+  <rect x="6" y="5" width="2" height="2" fill="#d64545"/>
+  <rect x="8" y="5" width="2" height="2" fill="#f2f2f2"/>
+  <rect x="10" y="5" width="2" height="2" fill="#d64545"/>
+  <rect x="12" y="5" width="2" height="2" fill="#f2f2f2"/>
+  <!-- sign -->
+  <rect x="5" y="3" width="6" height="2" fill="#3a7d44"/>
+</svg>

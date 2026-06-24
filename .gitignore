@@ -24,3 +24,14 @@ out/
 .env
 .env.*
 !.env.example
+
+# Godot 4
+# Editor import cache & metadata — regenerated on open, never commit.
+.godot/
+# Mono/.NET build output (only if a C# module is ever added).
+.mono/
+data_*/
+# Exported builds.
+/build/
+# Export presets can hold signing keys / store passwords — keep out of git.
+export_presets.cfg
