@@ -27,6 +27,12 @@ var stock: Dictionary = {
 	"hotdog": 0,
 }
 
+## upgrade_id -> owned level. The UPGRADE phase's persistence; numbers are placeholders.
+var upgrades: Dictionary = {
+	"counter_space": 0,
+	"loyalty_cards": 0,
+}
+
 ## Unix time of the last save. Used later to compute offline earnings in days.
 var last_saved_unix: int = 0
 
@@ -36,6 +42,7 @@ func reset() -> void:
 	money = STARTING_MONEY
 	day = 1
 	stock = {"cigarettes": 0, "soda": 0, "hotdog": 0}
+	upgrades = {"counter_space": 0, "loyalty_cards": 0}
 	last_saved_unix = 0
 
 
@@ -45,6 +52,7 @@ func to_dict() -> Dictionary:
 		"money": money,
 		"day": day,
 		"stock": stock,
+		"upgrades": upgrades,
 		"last_saved_unix": last_saved_unix,
 	}
 
@@ -53,6 +61,7 @@ func from_dict(data: Dictionary) -> void:
 	money = int(data.get("money", money))
 	day = int(data.get("day", day))
 	stock = data.get("stock", stock)
+	upgrades = data.get("upgrades", upgrades)
 	last_saved_unix = int(data.get("last_saved_unix", 0))
 
 

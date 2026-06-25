@@ -9,10 +9,7 @@ extends Control
 ## which just call Shift.serve()/prep_step(), so only this input layer changes.
 
 const ShiftScript := preload("res://scripts/phases/shift.gd")
-
-## Placeholder starting stock so the shift is playable while PROCURE is still a
-## stub. Tops up only empty products; remove once PROCURE sets real stock.
-const SEED_STOCK := {"cigarettes": 12, "soda": 12, "hotdog": 8}
+const UpgradeShopScript := preload("res://scripts/phases/upgrade_shop.gd")
 
 ## Danish first names for queue flavor (presentation only — not in the model).
 const NAMES := ["Anders", "Mette", "Lars", "Sofie", "Freja", "Mads", "Ida",
@@ -37,12 +34,12 @@ var _arrivals: int = 0
 
 
 func _ready() -> void:
-	_seed_stock_if_empty()
 	_cig_btn.pressed.connect(_serve.bind("cigarettes"))
 	_soda_btn.pressed.connect(_serve.bind("soda"))
 	_hotdog_btn.pressed.connect(_serve.bind("hotdog"))
 
 	_shift = ShiftScript.new(GameState)
+	UpgradeShopScript.new(GameState).apply_to_shift(_shift)
 	_shift.customer_arrived.connect(_on_customer_arrived)
 	_shift.customer_served.connect(_on_customer_served)
 	_shift.customer_left.connect(_on_customer_left)
@@ -167,9 +164,3 @@ func _make_card(c, who: String) -> Control:
 	vb.add_child(order_lbl)
 	vb.add_child(bar)
 	return card
-
-
-func _seed_stock_if_empty() -> void:
-	for id in SEED_STOCK:
-		if int(GameState.stock.get(id, 0)) <= 0:
-			GameState.stock[id] = SEED_STOCK[id]
