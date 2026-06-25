@@ -23,4 +23,4 @@ Skills that read from or write to the issue tracker (`to-issues`, `triage`, `to-
 
 ## Setup status
 
-Remote is configured and pushed to GitHub; the `gh` CLI is installed and authenticated. The `gh`-based workflow is live. Remaining one-time step: create the five triage labels (see `triage-labels.md`).
+Remote is configured and pushed to GitHub; the `gh` CLI is installed and authenticated. The `gh`-based workflow is live, and the five triage labels exist on the remote (see `triage-labels.md`).

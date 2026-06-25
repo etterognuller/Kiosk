@@ -72,5 +72,5 @@ its own ADR(s):
 
 - Decisions that shape architecture get an ADR in `docs/adr/` (engine choice is ADR-0001).
 - Work is tracked as GitHub issues via `gh` (see `docs/agents/issue-tracker.md`); the five
-  triage labels still need creating (see `docs/agents/triage-labels.md`).
+  triage labels are created on the remote (see `docs/agents/triage-labels.md`).
 - Update `CONTEXT.md` when an open thread is resolved or an invariant changes.
