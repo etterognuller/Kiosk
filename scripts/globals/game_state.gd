@@ -13,9 +13,22 @@ const SAVE_VERSION := 1
 ## Placeholder starting values. Real economic tuning is deferred (CONTEXT.md).
 const STARTING_MONEY := 50
 
+## Reputation (customer satisfaction) starts neutral on a 0..100 scale, so it reads
+## like a satisfaction percentage and has clear headroom both ways. Placeholder
+## tuning (CONTEXT.md); the clamp range lives with the movement logic in Shift.
+const STARTING_REPUTATION := 50
+
 ## Clean money, in Danish kroner. (Dirty money / two-currency economy is a
 ## later-phase concern and intentionally absent in v1.)
 var money: int = STARTING_MONEY
+
+## Customer satisfaction, 0..100. Soft pressure only — a low number slows progress
+## but never ends the game (CONTEXT.md: no-fail / cozy). Moved by Shift (a serve
+## raises it, a lost sale lowers it); downstream effects (tips, spawn rate) are a
+## later concern. It is a second number the player wants to keep high.
+## Later (ROADMAP "Polish"): present this as a 1..5 star rating (Trustpilot-style)
+## for realism — a display mapping over this same stored number, not a model change.
+var reputation: int = STARTING_REPUTATION
 
 ## The current day number. Days are the run / save / idle unit.
 var day: int = 1
@@ -41,6 +54,7 @@ var last_saved_unix: int = 0
 ## Reset to a fresh game. Called when there is no save to load.
 func reset() -> void:
 	money = STARTING_MONEY
+	reputation = STARTING_REPUTATION
 	day = 1
 	stock = {"cigarettes": 0, "soda": 0, "hotdog": 0}
 	upgrades = {"counter_space": 0, "loyalty_cards": 0, "clerk": 0}
@@ -51,6 +65,7 @@ func to_dict() -> Dictionary:
 	return {
 		"version": SAVE_VERSION,
 		"money": money,
+		"reputation": reputation,
 		"day": day,
 		"stock": stock,
 		"upgrades": upgrades,
@@ -60,6 +75,7 @@ func to_dict() -> Dictionary:
 
 func from_dict(data: Dictionary) -> void:
 	money = int(data.get("money", money))
+	reputation = int(data.get("reputation", reputation))
 	day = int(data.get("day", day))
 	stock = data.get("stock", stock)
 	upgrades = data.get("upgrades", upgrades)

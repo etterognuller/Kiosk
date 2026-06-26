@@ -12,6 +12,7 @@ const DayCycleScript := preload("res://scripts/globals/day_cycle.gd")
 class StateStub extends RefCounted:
 	var money: int = 0
 	var stock: Dictionary = {}
+	var reputation: int = 50
 
 
 func _isolated(stock: Dictionary) -> Array:
@@ -86,6 +87,67 @@ func test_patience_expiry_is_a_lost_sale() -> void:
 	assert_true(shift.queue.is_empty(), "impatient customer left")
 	assert_eq(shift.lost_sales, 1, "counted as a lost sale")
 	assert_eq(shift.served_count, 0, "nothing served")
+
+
+func test_serve_raises_reputation() -> void:
+	var pair := _isolated({"soda": 1})
+	var shift = pair[0]
+	var state = pair[1]
+	state.reputation = 50
+	shift.queue = [ShiftScript.Customer.new("soda", 10.0)]
+	assert_true(shift.serve("soda"), "served")
+	assert_eq(state.reputation, 50 + ShiftScript.REP_PER_SERVE, "a serve nudged reputation up")
+
+
+func test_stockout_lowers_reputation() -> void:
+	var pair := _isolated({"soda": 0})
+	var shift = pair[0]
+	var state = pair[1]
+	state.reputation = 50
+	shift.queue = [ShiftScript.Customer.new("soda", 10.0)]
+	assert_false(shift.serve("soda"), "stockout: no sale")
+	assert_eq(state.reputation, 50 - ShiftScript.REP_PER_LOST_SALE, "a stockout nudged reputation down")
+
+
+func test_patience_expiry_lowers_reputation() -> void:
+	var pair := _isolated({"soda": 5})
+	var shift = pair[0]
+	var state = pair[1]
+	state.reputation = 50
+	shift.queue = [ShiftScript.Customer.new("soda", 1.0)]
+	shift.tick(2.0)  # the customer's patience runs out -> a lost sale
+	assert_eq(shift.lost_sales, 1, "patience expiry counted as a lost sale")
+	assert_eq(state.reputation, 50 - ShiftScript.REP_PER_LOST_SALE, "an expiry nudged reputation down")
+
+
+func test_reputation_never_drops_below_floor() -> void:
+	# No-fail / cozy: a bad run pins reputation at the floor, never below, never a crash.
+	var pair := _isolated({"soda": 0, "cigarettes": 0})
+	var shift = pair[0]
+	var state = pair[1]
+	state.reputation = 1  # one point above the floor, less than one loss step
+	shift.queue = [
+		ShiftScript.Customer.new("soda", 10.0),
+		ShiftScript.Customer.new("cigarettes", 10.0),
+	]
+	shift.serve("soda")        # stockout -> down, clamps at the floor
+	shift.serve("cigarettes")  # another stockout -> stays at the floor
+	assert_eq(state.reputation, ShiftScript.REP_MIN, "reputation clamped at the floor")
+	assert_true(state.reputation >= 0, "reputation never went negative")
+
+
+func test_reputation_never_exceeds_ceiling() -> void:
+	var pair := _isolated({"soda": 5})
+	var shift = pair[0]
+	var state = pair[1]
+	state.reputation = ShiftScript.REP_MAX  # already maxed
+	shift.queue = [
+		ShiftScript.Customer.new("soda", 10.0),
+		ShiftScript.Customer.new("soda", 10.0),
+	]
+	shift.serve("soda")
+	shift.serve("soda")
+	assert_eq(state.reputation, ShiftScript.REP_MAX, "reputation clamped at the ceiling")
 
 
 func test_fixed_wave_ends_and_emits_shift_ended_once() -> void:

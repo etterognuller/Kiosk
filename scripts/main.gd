@@ -5,6 +5,7 @@ extends Control
 
 @onready var _day_label: Label = %DayLabel
 @onready var _money_label: Label = %MoneyLabel
+@onready var _reputation_label: Label = %ReputationLabel
 @onready var _phase_label: Label = %PhaseLabel
 @onready var _phase_host: Control = %PhaseHost
 
@@ -25,6 +26,13 @@ func _ready() -> void:
 	DayCycle.start()
 
 
+## Poll the model each frame so money and reputation visibly move during a shift —
+## the SERVE phase mutates GameState continuously, between phase_changed signals.
+## Cheap: it only re-stamps four labels (Label.set_text no-ops on an equal value).
+func _process(_delta: float) -> void:
+	_refresh_hud()
+
+
 func _on_day_started(_day: int) -> void:
 	_refresh_hud()
 
@@ -41,4 +49,5 @@ func _on_phase_changed(phase: int) -> void:
 func _refresh_hud() -> void:
 	_day_label.text = "Day %d" % GameState.day
 	_money_label.text = "%d kr" % GameState.money
+	_reputation_label.text = "Rep %d" % GameState.reputation
 	_phase_label.text = DayCycle.phase_name()

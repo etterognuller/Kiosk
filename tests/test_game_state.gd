@@ -8,6 +8,7 @@ const GameStateScript := preload("res://scripts/globals/game_state.gd")
 func test_to_from_dict_round_trip() -> void:
 	var gs = GameStateScript.new()
 	gs.money = 123
+	gs.reputation = 72
 	gs.day = 7
 	gs.stock = {"cigarettes": 4, "soda": 2, "hotdog": 1}
 	var snapshot: Dictionary = gs.to_dict()
@@ -15,8 +16,29 @@ func test_to_from_dict_round_trip() -> void:
 	var restored = GameStateScript.new()
 	restored.from_dict(snapshot)
 	assert_eq(restored.money, 123, "money")
+	assert_eq(restored.reputation, 72, "reputation survived the round-trip")
 	assert_eq(restored.day, 7, "day")
 	assert_eq(int(restored.stock["soda"]), 2, "stock.soda")
+
+
+func test_fresh_game_initializes_reputation() -> void:
+	var gs = GameStateScript.new()
+	assert_eq(gs.reputation, GameStateScript.STARTING_REPUTATION, "fresh game starts at neutral reputation")
+
+
+func test_reset_restores_reputation() -> void:
+	var gs = GameStateScript.new()
+	gs.reputation = 3
+	gs.reset()
+	assert_eq(gs.reputation, GameStateScript.STARTING_REPUTATION, "reset returns reputation to its start value")
+
+
+func test_from_dict_tolerates_missing_reputation() -> void:
+	# Old saves predating the reputation meter lack the key; the default survives.
+	var gs = GameStateScript.new()
+	gs.from_dict({"day": 4})
+	assert_eq(gs.day, 4, "day taken from dict")
+	assert_eq(gs.reputation, GameStateScript.STARTING_REPUTATION, "reputation default kept when absent")
 
 
 func test_to_dict_includes_upgrades() -> void:

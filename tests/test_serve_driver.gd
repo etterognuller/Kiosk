@@ -17,6 +17,7 @@ const GameStateScript := preload("res://scripts/globals/game_state.gd")
 class StateStub extends RefCounted:
 	var money: int = 0
 	var stock: Dictionary = {}
+	var reputation: int = 50
 
 
 ## Returns [shift, state] with spawning off and an empty queue to populate, so the

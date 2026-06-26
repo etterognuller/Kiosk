@@ -32,6 +32,11 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "0 kr"
 
+[node name="ReputationLabel" type="Label" parent="TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Rep 50"
+
 [node name="PhaseLabel" type="Label" parent="TopBar"]
 unique_name_in_owner = true
 layout_mode = 2

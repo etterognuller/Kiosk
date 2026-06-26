@@ -64,7 +64,7 @@ its own ADR(s):
 - **Factions:** side with vs. outcompete the criminals.
 - **"Adventures":** define and build the DAVE-style interactive episodes.
 - **Polish:** custom pixel art, audio, narrative/dialogue, Danish flavor pass, mobile UI,
-  economic tuning.
+  economic tuning, reputation shown as a 1–5 star rating (Trustpilot-style) for realism.
 
 ---
 

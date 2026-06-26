@@ -43,6 +43,17 @@ const DEFAULT_WAVE_SIZE := 8        ## customers per shift (the fixed-wave end c
 const DEFAULT_SPAWN_INTERVAL := 2.5 ## seconds between arrivals
 const DEFAULT_PATIENCE := 10.0      ## seconds a customer waits before leaving
 
+## Reputation movement, in points on GameState's 0..100 satisfaction scale. A serve
+## nudges it up; a lost sale (stockout or an expired patience timer) nudges it down a
+## little harder, so keeping stock in and the line moving is what holds the meter up.
+## Clamped to [REP_MIN, REP_MAX] — it never triggers a fail state and never drops
+## below the floor (CONTEXT.md: no-fail / cozy). Placeholder tuning; flag for a feel
+## pass. Concrete downstream effects of reputation are intentionally out of scope here.
+const REP_PER_SERVE := 1
+const REP_PER_LOST_SALE := 2
+const REP_MIN := 0
+const REP_MAX := 100
+
 var wave_size: int = DEFAULT_WAVE_SIZE
 var spawn_interval: float = DEFAULT_SPAWN_INTERVAL
 var patience: float = DEFAULT_PATIENCE
@@ -127,9 +138,10 @@ func serve(product_id: String) -> bool:
 		return false  # hot dog isn't prepped yet; can't hand it over
 	var on_hand := int(_state.stock.get(product_id, 0))
 	if on_hand <= 0:
-		# Stockout: a lost sale, never a negative balance. The customer leaves.
+		# Stockout: a lost sale, never a negative balance. The customer leaves unhappy.
 		queue.pop_front()
 		lost_sales += 1
+		_adjust_reputation(-REP_PER_LOST_SALE)
 		customer_left.emit(c)
 		_reset_prep()
 		_check_end()
@@ -139,6 +151,7 @@ func serve(product_id: String) -> bool:
 	_state.money += price
 	_state.stock[product_id] = on_hand - 1
 	served_count += 1
+	_adjust_reputation(REP_PER_SERVE)
 	queue.pop_front()
 	customer_served.emit(c, price)
 	_reset_prep()
@@ -187,9 +200,18 @@ func _remove_customer(index: int, lost: bool) -> void:
 	queue.remove_at(index)
 	if lost:
 		lost_sales += 1
+		_adjust_reputation(-REP_PER_LOST_SALE)
 		customer_left.emit(c)
 	if index == 0:
 		_reset_prep()  # the active customer changed
+
+
+## Nudge reputation by `delta`, clamped to [REP_MIN, REP_MAX]. Written through the
+## injected state like money/stock, so it persists and unit-tests without the
+## autoload graph. The clamp is the no-fail floor/ceiling: reputation never goes
+## negative and never triggers a game-over, it just sits at the floor on a bad run.
+func _adjust_reputation(delta: int) -> void:
+	_state.reputation = clampi(int(_state.reputation) + delta, REP_MIN, REP_MAX)
 
 
 func _reset_prep() -> void:
