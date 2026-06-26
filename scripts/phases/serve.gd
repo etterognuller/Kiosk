@@ -10,6 +10,7 @@ extends Control
 
 const ShiftScript := preload("res://scripts/phases/shift.gd")
 const UpgradeShopScript := preload("res://scripts/phases/upgrade_shop.gd")
+const ServeDriverScript := preload("res://scripts/phases/serve_driver.gd")
 
 ## Danish first names for queue flavor (presentation only — not in the model).
 const NAMES := ["Anders", "Mette", "Lars", "Sofie", "Freja", "Mads", "Ida",
@@ -28,6 +29,7 @@ const WANTED := Color(0.62, 1.0, 0.62)   ## highlight for the needed product but
 @onready var _hotdog_btn: Button = %HotdogBtn
 
 var _shift
+var _driver                   ## the auto-serve clerk (ServeDriver), a second caller of Shift
 var _cards: Dictionary = {}   ## Customer -> card Control
 var _names: Dictionary = {}   ## Customer -> display name
 var _arrivals: int = 0
@@ -39,7 +41,12 @@ func _ready() -> void:
 	_hotdog_btn.pressed.connect(_serve.bind("hotdog"))
 
 	_shift = ShiftScript.new(GameState)
-	UpgradeShopScript.new(GameState).apply_to_shift(_shift)
+	var shop = UpgradeShopScript.new(GameState)
+	shop.apply_to_shift(_shift)
+	# The clerk reads its hired level once, at shift start: a clerk hired mid-UPGRADE
+	# takes effect the next shift (CONTEXT.md invariant 3: the day is the unit). It is
+	# purely additive — a second caller beside _serve(), never a gate on the buttons.
+	_driver = ServeDriverScript.new(_shift, shop.level_of("clerk"))
 	_shift.customer_arrived.connect(_on_customer_arrived)
 	_shift.customer_served.connect(_on_customer_served)
 	_shift.customer_left.connect(_on_customer_left)
@@ -52,6 +59,8 @@ func _process(delta: float) -> void:
 	if _shift == null or _shift.is_over:
 		return
 	_shift.tick(delta)
+	if _driver != null:
+		_driver.tick(delta)
 	_refresh()
 
 

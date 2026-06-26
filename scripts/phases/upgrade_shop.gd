@@ -42,6 +42,22 @@ const CATALOG := {
 		"target": "patience",
 		"effect_per_level": 1.5,
 	},
+	"clerk": {
+		"label": "Hire a Clerk",
+		"effect_text": "Auto-serves the front customer alongside you",
+		# Costs 100 / 400 / 700 (base + step*level). Deliberately steep: the clerk is a
+		# long-term idle unlock, so each level is several days of takings, not pocket
+		# change — reaching a steady auto-served shift should feel earned. Placeholder
+		# tuning (CONTEXT.md defers numbers).
+		"base_cost": 100,
+		"cost_step": 300,
+		"max_level": 3,
+		# target is "" (and effect_per_level 0.0) because the clerk maps to
+		# ServeDriver cadence — it is driver-owned, not a Shift field — so it does
+		# NOT flow through apply_to_shift(); ServeDriver reads level_of("clerk").
+		"target": "",
+		"effect_per_level": 0.0,
+	},
 }
 
 signal changed()  ## a purchase landed; money and/or a level changed

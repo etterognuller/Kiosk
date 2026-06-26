@@ -31,6 +31,7 @@ var stock: Dictionary = {
 var upgrades: Dictionary = {
 	"counter_space": 0,
 	"loyalty_cards": 0,
+	"clerk": 0,
 }
 
 ## Unix time of the last save. Used later to compute offline earnings in days.
@@ -42,7 +43,7 @@ func reset() -> void:
 	money = STARTING_MONEY
 	day = 1
 	stock = {"cigarettes": 0, "soda": 0, "hotdog": 0}
-	upgrades = {"counter_space": 0, "loyalty_cards": 0}
+	upgrades = {"counter_space": 0, "loyalty_cards": 0, "clerk": 0}
 	last_saved_unix = 0
 
 

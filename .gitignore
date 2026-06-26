@@ -13,6 +13,9 @@ desktop.ini
 *.log
 *.tmp
 .cache/
+# Headless test/boot run output (Start-Process redirect targets — see docs/dev-setup.md).
+/out.txt
+/err.txt
 
 # Dependencies / build output (fill in as the stack is chosen)
 node_modules/
