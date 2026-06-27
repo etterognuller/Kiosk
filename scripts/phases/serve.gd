@@ -11,6 +11,7 @@ extends Control
 const ShiftScript := preload("res://scripts/phases/shift.gd")
 const UpgradeShopScript := preload("res://scripts/phases/upgrade_shop.gd")
 const ServeDriverScript := preload("res://scripts/phases/serve_driver.gd")
+const DayScalingScript := preload("res://scripts/day_scaling.gd")
 
 ## Danish first names for queue flavor (presentation only — not in the model).
 const NAMES := ["Anders", "Mette", "Lars", "Sofie", "Freja", "Mads", "Ida",
@@ -43,6 +44,10 @@ func _ready() -> void:
 	_shift = ShiftScript.new(GameState)
 	var shop = UpgradeShopScript.new(GameState)
 	shop.apply_to_shift(_shift)
+	# Day-driven escalation (issue #2): later days bring a busier wave. Applied on
+	# top of the upgrade tuning so the two compose — a gentle, bounded ramp that
+	# keeps the shift no-fail (CONTEXT.md). The clerk reads its level next.
+	_shift.wave_size += DayScalingScript.wave_bonus(GameState.day)
 	# The clerk reads its hired level once, at shift start: a clerk hired mid-UPGRADE
 	# takes effect the next shift (CONTEXT.md invariant 3: the day is the unit). It is
 	# purely additive — a second caller beside _serve(), never a gate on the buttons.
