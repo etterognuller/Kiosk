@@ -58,6 +58,12 @@ func _add_row(id: String) -> void:
 	_rows[id] = status_lbl
 
 
+## Gray for available/owned rows; amber for a locked (prerequisite-unmet) row so
+## the tree's gating reads at a glance.
+const _STATUS_COLOR := Color(0.7, 0.7, 0.7)
+const _LOCKED_COLOR := Color(0.85, 0.65, 0.3)
+
+
 func _refresh() -> void:
 	if _shop == null:
 		return
@@ -66,10 +72,22 @@ func _refresh() -> void:
 		var status: Label = _rows[id]
 		var btn: Button = _buttons[id]
 		var level: int = _shop.level_of(id)
-		if _shop.is_maxed(id):
+		if not _shop.is_unlocked(id):
+			# Gated upgrade whose prerequisite is not yet met: show the requirement
+			# and disable Buy. Pressing it anyway is a harmless no-op in UpgradeShop.
+			var req: Dictionary = _shop.requirement_of(id)
+			var req_label: String = UpgradeShopScript.CATALOG[req["id"]]["label"]
+			status.text = "Locked — requires %s Lv %d" % [req_label, int(req["level"])]
+			status.add_theme_color_override("font_color", _LOCKED_COLOR)
+			btn.text = "Locked"
+			btn.disabled = true
+		elif _shop.is_maxed(id):
 			status.text = "Level %d — Maxed" % level
+			status.add_theme_color_override("font_color", _STATUS_COLOR)
 			btn.text = "MAX"
+			btn.disabled = true
 		else:
 			status.text = "Level %d" % level
+			status.add_theme_color_override("font_color", _STATUS_COLOR)
 			btn.text = "Buy — %d kr" % _shop.cost_of(id)
-		btn.disabled = _shop.is_maxed(id) or not _shop.can_afford(id)
+			btn.disabled = not _shop.can_afford(id)

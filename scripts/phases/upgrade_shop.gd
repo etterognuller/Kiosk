@@ -33,6 +33,21 @@ const CATALOG := {
 		"target": "wave_size",
 		"effect_per_level": 1.0,
 	},
+	"second_counter": {
+		"label": "Second Counter",
+		"effect_text": "+2 customers per shift",
+		"base_cost": 120,
+		"cost_step": 80,
+		"max_level": 3,
+		"target": "wave_size",
+		"effect_per_level": 2.0,
+		# Tree v1 (issue #3): the first *gated* upgrade. Locked until Counter Space
+		# reaches Lv 2 — you grow the counter before adding a second one. A deeper,
+		# pricier, stronger wave_size tier than counter_space (which it stacks with,
+		# since apply_to_shift sums every wave_size contributor). Placeholder tuning
+		# (CONTEXT.md defers numbers) — flagged for a feel pass.
+		"requires": {"id": "counter_space", "level": 2},
+	},
 	"loyalty_cards": {
 		"label": "Loyalty Cards",
 		"effect_text": "+1.5s patience",
@@ -85,6 +100,25 @@ func is_maxed(id: String) -> bool:
 	return level_of(id) >= int(CATALOG[id]["max_level"])
 
 
+## The prerequisite for `id`, as {"id": String, "level": int}, or {} if it has none.
+## This is the upgrade-tree edge (issue #3): a gated upgrade names another upgrade
+## it must reach before it can be bought.
+func requirement_of(id: String) -> Dictionary:
+	if not CATALOG.has(id):
+		return {}
+	return CATALOG[id].get("requires", {})
+
+
+## True if `id` has no prerequisite, or its prerequisite is met (the required
+## upgrade is at or above the required level). Unknown ids are never unlocked —
+## there is nothing to buy.
+func is_unlocked(id: String) -> bool:
+	var req: Dictionary = requirement_of(id)
+	if req.is_empty():
+		return CATALOG.has(id)
+	return level_of(String(req["id"])) >= int(req["level"])
+
+
 ## Can the player buy the next level right now? False for unknown / maxed / too dear.
 func can_afford(id: String) -> bool:
 	if not CATALOG.has(id):
@@ -94,11 +128,17 @@ func can_afford(id: String) -> bool:
 	return int(_state.money) >= cost_of(id)
 
 
+## The full purchase gate: prerequisite met, known, not maxed, and affordable.
+## buy() is exactly can_buy() with the side effect.
+func can_buy(id: String) -> bool:
+	return is_unlocked(id) and can_afford(id)
+
+
 ## Attempt to buy the next level of `id`. Returns true on a purchase. Unknown,
-## maxed, or unaffordable is a harmless no-op (returns false); money and levels
-## never go negative.
+## locked (prerequisite unmet), maxed, or unaffordable is a harmless no-op
+## (returns false); money and levels never go negative.
 func buy(id: String) -> bool:
-	if not can_afford(id):
+	if not can_buy(id):
 		return false
 	_state.money = int(_state.money) - cost_of(id)
 	_state.upgrades[id] = level_of(id) + 1
@@ -114,6 +154,19 @@ func effect_of(id: String, level: int) -> float:
 
 ## Seed a fresh Shift's tuning from the owned upgrade levels, offsetting each
 ## target field from the Shift's default. serve.gd calls this before start().
+## Every catalog entry whose `target` names a Shift field contributes its
+## effect, so multiple upgrades can stack on the same field (e.g. counter_space
+## and second_counter both raise wave_size) and a new upgrade only needs a
+## catalog entry — no change here. Entries with an empty target (the clerk, which
+## is ServeDriver-owned) contribute nothing.
 func apply_to_shift(shift) -> void:
-	shift.wave_size = ShiftScript.DEFAULT_WAVE_SIZE + int(effect_of("counter_space", level_of("counter_space")))
-	shift.patience = ShiftScript.DEFAULT_PATIENCE + effect_of("loyalty_cards", level_of("loyalty_cards"))
+	var wave_bonus: int = 0
+	var patience_bonus: float = 0.0
+	for id in CATALOG:
+		match String(CATALOG[id]["target"]):
+			"wave_size":
+				wave_bonus += int(effect_of(id, level_of(id)))
+			"patience":
+				patience_bonus += effect_of(id, level_of(id))
+	shift.wave_size = ShiftScript.DEFAULT_WAVE_SIZE + wave_bonus
+	shift.patience = ShiftScript.DEFAULT_PATIENCE + patience_bonus

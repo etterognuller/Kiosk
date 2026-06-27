@@ -134,6 +134,79 @@ func test_cross_seam_round_trip_through_game_state() -> void:
 	assert_eq(shift.patience, ShiftScript.DEFAULT_PATIENCE + 1.5, "loyalty_cards x1 survived the save")
 
 
+func test_requirement_of_reports_the_tree_edge() -> void:
+	# second_counter is gated behind counter_space Lv 2; the others are roots.
+	var pair := _shop(0)
+	var shop = pair[0]
+	assert_eq(shop.requirement_of("second_counter"), {"id": "counter_space", "level": 2}, "gated edge reported")
+	assert_true(shop.requirement_of("counter_space").is_empty(), "root upgrade has no prerequisite")
+	assert_true(shop.requirement_of("teleporter").is_empty(), "unknown id has no prerequisite")
+
+
+func test_gated_upgrade_is_locked_until_prerequisite_met() -> void:
+	# Plenty of money, but the prerequisite (counter_space Lv 2) is unmet.
+	var pair := _shop(9999, {"counter_space": 1})
+	var shop = pair[0]
+	assert_false(shop.is_unlocked("second_counter"), "locked at counter_space Lv 1")
+	assert_false(shop.can_buy("second_counter"), "cannot buy while locked, even with money")
+	# Reaching the prerequisite level unlocks it.
+	shop.buy("counter_space")  # -> Lv 2
+	assert_true(shop.is_unlocked("second_counter"), "unlocked once counter_space hits Lv 2")
+	assert_true(shop.can_buy("second_counter"), "buyable once unlocked and affordable")
+
+
+func test_buying_a_locked_upgrade_is_a_harmless_noop() -> void:
+	# No-fail invariant: pressing Buy on a locked row spends nothing and crashes nothing.
+	var pair := _shop(9999, {"counter_space": 0})
+	var shop = pair[0]
+	var state = pair[1]
+	assert_false(shop.buy("second_counter"), "locked buy is not a purchase")
+	assert_eq(state.money, 9999, "money untouched while locked")
+	assert_eq(shop.level_of("second_counter"), 0, "level stays at 0 while locked")
+
+
+func test_unlocked_gated_upgrade_buys_like_any_other() -> void:
+	# Once the gate is open it follows the normal cost-scaling / max-level rules.
+	var pair := _shop(9999, {"counter_space": 2})
+	var shop = pair[0]
+	assert_eq(shop.cost_of("second_counter"), 120, "level 0 -> base 120")
+	assert_true(shop.buy("second_counter"), "first level bought")
+	assert_eq(shop.cost_of("second_counter"), 200, "level 1 -> 120 + 80")
+	assert_true(shop.buy("second_counter"), "second level")
+	assert_true(shop.buy("second_counter"), "third level")
+	assert_true(shop.is_maxed("second_counter"), "maxed at level 3")
+	assert_false(shop.buy("second_counter"), "no purchase past max")
+
+
+func test_second_counter_stacks_on_wave_size_once_owned() -> void:
+	# Proves the effect flows end-to-end: counter_space (+1/lvl) and second_counter
+	# (+2/lvl) both raise wave_size, summed in apply_to_shift.
+	var pair := _shop(0, {"counter_space": 2, "second_counter": 1})
+	var shop = pair[0]
+	var state = pair[1]
+	var shift = ShiftScript.new(state)
+	shop.apply_to_shift(shift)
+	assert_eq(shift.wave_size, ShiftScript.DEFAULT_WAVE_SIZE + 2 + 2, "counter_space x2 (+2) and second_counter x1 (+2)")
+
+
+func test_gated_upgrade_level_survives_round_trip() -> void:
+	# Owned level of the new upgrade must persist across a save/load, and the
+	# prerequisite link must still resolve as unlocked afterwards.
+	var gs = GameStateScript.new()
+	gs.money = 9999
+	var shop = UpgradeShopScript.new(gs)
+	shop.buy("counter_space")  # Lv 1
+	shop.buy("counter_space")  # Lv 2 -> unlocks second_counter
+	assert_true(shop.buy("second_counter"), "second_counter Lv 1")
+	var snapshot: Dictionary = gs.to_dict()
+
+	var restored = GameStateScript.new()
+	restored.from_dict(snapshot)
+	var restored_shop = UpgradeShopScript.new(restored)
+	assert_eq(restored_shop.level_of("second_counter"), 1, "owned level survived the save")
+	assert_true(restored_shop.is_unlocked("second_counter"), "still unlocked after load")
+
+
 func test_day1_starter_upgrades_are_affordable() -> void:
 	# Smoke: on a fresh state (50 kr) the first level of either upgrade is buyable.
 	var pair := _shop(GameStateScript.STARTING_MONEY)
