@@ -23,7 +23,31 @@ func _ready() -> void:
 	DayCycle.phase_changed.connect(_on_phase_changed)
 	DayCycle.day_started.connect(_on_day_started)
 	_refresh_hud()
+	_maybe_show_offline_banner()
 	DayCycle.start()
+
+
+## One-time "welcome back" banner for the days-away catch-up (issue #6). Game
+## computed and granted the reward on boot; here we just surface it. Nothing to
+## show on a fresh game or a sub-day gap. The banner is a transient runtime node
+## that frees itself after a few seconds, so it needs no scene change.
+func _maybe_show_offline_banner() -> void:
+	var report: Dictionary = Game.last_offline_report
+	if int(report.get("days", 0)) <= 0:
+		return
+	var days: int = int(report["days"])
+	var reward: int = int(report["reward"])
+	var banner := Label.new()
+	banner.text = "Welcome back — %d day%s passed while you were away  (+%d kr)" % [
+		days, "" if days == 1 else "s", reward,
+	]
+	banner.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	banner.position.y += 40
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(banner)
+	get_tree().create_timer(6.0).timeout.connect(banner.queue_free)
 
 
 ## Poll the model each frame so money and reputation visibly move during a shift —
