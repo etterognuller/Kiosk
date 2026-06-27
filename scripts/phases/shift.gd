@@ -28,13 +28,22 @@ signal shift_ended()                         ## fires exactly once, when the wav
 const PRODUCTS := {
 	"cigarettes": {"label": "Cigarettes", "price": 6, "prep": false},
 	"soda": {"label": "Soda", "price": 5, "prep": false},
-	"hotdog": {"label": "Hot dog", "price": 12, "prep": true},
+	"hotdog": {"label": "Hot dog", "price": 12, "prep": true, "prep_hint": "bun → sausage → hand over"},
 	# Pakkeshop parcel line (issue #4): an instant grab-and-ring sale, no prep —
 	# the signature Danish kiosk staple. Placeholder price (CONTEXT.md), kept above
 	# its wholesale cost so it turns a margin. Appended last so the existing
 	# deterministic spawn rotation (and the tests pinned to it) are unchanged.
 	"parcels": {"label": "Parcel", "price": 8, "prep": false},
+	# Second product tier (issue #5): coffee — a higher-value signature item that
+	# reuses the light-prep mechanic (its own flavour hint, same PREP_STEPS depth).
+	# Premium retail above the hot dog; placeholder tuning (CONTEXT.md). Available
+	# from the start (the thin path #4 established); gating it behind a future
+	# "Coffee Machine" upgrade is a natural follow-up now #3's prerequisites exist.
+	"coffee": {"label": "Coffee", "price": 15, "prep": true, "prep_hint": "grind → pour → hand over"},
 }
+
+## Optional per-prep-product flavour for the prep prompt ("bun → sausage → hand
+## over"). `prep_hint` is read by the SERVE screen only; the rules ignore it.
 
 ## Hot dog prep: clicks needed before it can be handed over (bun -> sausage). The
 ## serve itself is the final "hand over", so the player clicks the hot dog three

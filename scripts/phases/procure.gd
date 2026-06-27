@@ -18,7 +18,7 @@ signal stock_changed()  ## emitted only after a buy that actually changed stock
 ## Local mirror of the SERVE retail prices (shift.gd PRODUCTS[id].price). Used only
 ## by the drift-guard test, which asserts every CATALOG cost stays strictly below
 ## its sell price so procuring at wholesale can never out-cost retail.
-const SELL_PRICES := {"cigarettes": 6, "soda": 5, "hotdog": 12, "parcels": 8}
+const SELL_PRICES := {"cigarettes": 6, "soda": 5, "hotdog": 12, "parcels": 8, "coffee": 15}
 
 ## v1 wholesale catalog. Costs are placeholder tuning (CONTEXT.md defers numbers),
 ## kept strictly below SELL_PRICES so every unit sold turns a margin. Product ids
@@ -30,6 +30,9 @@ const CATALOG := {
 	# Pakkeshop parcels (issue #4): wholesale below the retail price (8) like the
 	# rest, so each parcel handled turns a margin. Placeholder tuning (CONTEXT.md).
 	"parcels": {"label": "Parcel", "cost": 4},
+	# Coffee (issue #5): the premium signature item — cheap beans (6) wholesale,
+	# rich retail (15), the fattest margin in the kiosk. Placeholder tuning.
+	"coffee": {"label": "Coffee", "cost": 6},
 }
 
 var _state  ## GameState-shaped: `money: int`, `stock: Dictionary`

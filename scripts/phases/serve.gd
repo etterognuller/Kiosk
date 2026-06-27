@@ -148,9 +148,11 @@ func _refresh() -> void:
 		btn.modulate = WANTED if want == id else Color.WHITE
 
 	if active != null and ShiftScript.PRODUCTS[active.product_id]["prep"]:
+		var p: Dictionary = ShiftScript.PRODUCTS[active.product_id]
+		var hint: String = p.get("prep_hint", "prepare, then hand over")
 		_prep_label.visible = true
-		_prep_label.text = "Hot dog prep %d/%d — click Hot dog: bun → sausage → hand over" % [
-			_shift.prep_progress, ShiftScript.PREP_STEPS]
+		_prep_label.text = "%s prep %d/%d — click %s: %s" % [
+			p["label"], _shift.prep_progress, ShiftScript.PREP_STEPS, p["label"], hint]
 	else:
 		_prep_label.visible = false
 
