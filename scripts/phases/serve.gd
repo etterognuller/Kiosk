@@ -25,21 +25,28 @@ const WANTED := Color(0.62, 1.0, 0.62)   ## highlight for the needed product but
 @onready var _queue_line: HBoxContainer = %QueueLine
 @onready var _empty_hint: Label = %EmptyHint
 @onready var _prep_label: Label = %PrepLabel
-@onready var _cig_btn: Button = %CigBtn
-@onready var _soda_btn: Button = %SodaBtn
-@onready var _hotdog_btn: Button = %HotdogBtn
+@onready var _buttons_box: HBoxContainer = %Buttons
 
 var _shift
-var _driver                   ## the auto-serve clerk (ServeDriver), a second caller of Shift
-var _cards: Dictionary = {}   ## Customer -> card Control
-var _names: Dictionary = {}   ## Customer -> display name
+var _driver                       ## the auto-serve clerk (ServeDriver), a second caller of Shift
+var _product_buttons: Dictionary = {}  ## product_id -> its serve Button
+var _cards: Dictionary = {}       ## Customer -> card Control
+var _names: Dictionary = {}       ## Customer -> display name
 var _arrivals: int = 0
 
 
 func _ready() -> void:
-	_cig_btn.pressed.connect(_serve.bind("cigarettes"))
-	_soda_btn.pressed.connect(_serve.bind("soda"))
-	_hotdog_btn.pressed.connect(_serve.bind("hotdog"))
+	# One serve button per product, built from the catalog — adding a product line
+	# (e.g. the pakkeshop parcel, issue #4) needs only a PRODUCTS entry, no scene
+	# edit. Each routes its click to _serve(id); the hot-dog prep flow is keyed off
+	# PRODUCTS[id].prep inside _serve, so it composes for any prep item.
+	for id in ShiftScript.PRODUCTS:
+		var btn := Button.new()
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(0, 72)
+		btn.pressed.connect(_serve.bind(id))
+		_buttons_box.add_child(btn)
+		_product_buttons[id] = btn
 
 	_shift = ShiftScript.new(GameState)
 	var shop = UpgradeShopScript.new(GameState)
@@ -132,13 +139,13 @@ func _refresh() -> void:
 		var name_lbl: Label = card.get_node("VB/Name")
 		name_lbl.text = ("▶ " if is_active else "") + String(_names.get(c, ""))
 
-	_cig_btn.text = _btn_text("cigarettes")
-	_soda_btn.text = _btn_text("soda")
-	_hotdog_btn.text = _btn_text("hotdog")
+	# Each product button shows its price + live stock and lights up when it's the
+	# one the front customer wants — same treatment for every product line.
 	var want: String = active.product_id if active != null else ""
-	_cig_btn.modulate = WANTED if want == "cigarettes" else Color.WHITE
-	_soda_btn.modulate = WANTED if want == "soda" else Color.WHITE
-	_hotdog_btn.modulate = WANTED if want == "hotdog" else Color.WHITE
+	for id in _product_buttons:
+		var btn: Button = _product_buttons[id]
+		btn.text = _btn_text(id)
+		btn.modulate = WANTED if want == id else Color.WHITE
 
 	if active != null and ShiftScript.PRODUCTS[active.product_id]["prep"]:
 		_prep_label.visible = true

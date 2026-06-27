@@ -29,6 +29,11 @@ const PRODUCTS := {
 	"cigarettes": {"label": "Cigarettes", "price": 6, "prep": false},
 	"soda": {"label": "Soda", "price": 5, "prep": false},
 	"hotdog": {"label": "Hot dog", "price": 12, "prep": true},
+	# Pakkeshop parcel line (issue #4): an instant grab-and-ring sale, no prep —
+	# the signature Danish kiosk staple. Placeholder price (CONTEXT.md), kept above
+	# its wholesale cost so it turns a margin. Appended last so the existing
+	# deterministic spawn rotation (and the tests pinned to it) are unchanged.
+	"parcels": {"label": "Parcel", "price": 8, "prep": false},
 }
 
 ## Hot dog prep: clicks needed before it can be handed over (bun -> sausage). The

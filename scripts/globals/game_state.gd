@@ -38,6 +38,7 @@ var stock: Dictionary = {
 	"cigarettes": 0,
 	"soda": 0,
 	"hotdog": 0,
+	"parcels": 0,
 }
 
 ## upgrade_id -> owned level. The UPGRADE phase's persistence; numbers are placeholders.
@@ -57,7 +58,7 @@ func reset() -> void:
 	money = STARTING_MONEY
 	reputation = STARTING_REPUTATION
 	day = 1
-	stock = {"cigarettes": 0, "soda": 0, "hotdog": 0}
+	stock = {"cigarettes": 0, "soda": 0, "hotdog": 0, "parcels": 0}
 	upgrades = {"counter_space": 0, "second_counter": 0, "loyalty_cards": 0, "clerk": 0}
 	last_saved_unix = 0
 
