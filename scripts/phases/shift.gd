@@ -38,7 +38,10 @@ const PRODUCTS := {
 	# its wholesale cost so it turns a margin. Rating-gated: the forwarders only set up
 	# once the store has earned a 4.0★ reputation (see unlocked_product_ids; the gate is
 	# sticky via GameState.best_rating). Placeholder threshold (CONTEXT.md) — flag for F5.
-	"parcels": {"label": "Parcel", "price": 8, "prep": false, "requires_rating": 4.0},
+	# `unlock_blurb` is the one-shot celebration copy shown when the gate is first crossed
+	# (Main reads it; any future gated line supplies its own).
+	"parcels": {"label": "Parcel", "price": 8, "prep": false, "requires_rating": 4.0,
+		"unlock_blurb": "The pakkeshop forwarders saw your reviews and moved in — parcels are yours to handle."},
 	# Second product tier (issue #5): coffee — a higher-value signature item that
 	# reuses the light-prep mechanic (its own flavour hint, same PREP_STEPS depth).
 	# Premium retail above the hot dog; placeholder tuning (CONTEXT.md). Available
@@ -162,6 +165,16 @@ static func unlocked_product_ids(rating: float) -> Array:
 		if rating >= float(PRODUCTS[id].get("requires_rating", 0.0)):
 			ids.append(id)
 	return ids
+
+
+## The product ids whose rating gate is newly crossed going from `old_rating` to
+## `new_rating` — i.e. gated lines that were locked before and are unlocked now. Pure
+## set difference over unlocked_product_ids; serve.gd calls it the moment a shift's
+## reviews lift best_rating, to fire the one-shot unlock celebration. Empty when nothing
+## crossed (the common case), so the caller can just check is_empty().
+static func newly_unlocked_product_ids(old_rating: float, new_rating: float) -> Array:
+	var before := unlocked_product_ids(old_rating)
+	return unlocked_product_ids(new_rating).filter(func(id): return id not in before)
 
 
 ## Attempt to serve `product_id` to the active customer. Returns true on a sale.

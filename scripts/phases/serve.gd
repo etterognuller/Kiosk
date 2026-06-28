@@ -153,7 +153,14 @@ func _on_shift_ended() -> void:
 	# Reviews are summed at day's end: fold this shift's tally into the lifetime rating
 	# now, before UPGRADE, so the new rating (and any freshly-unlocked tiers) are live on
 	# tonight's UPGRADE screen and tomorrow's PROCURE.
+	var rating_before: float = GameState.best_rating
 	GameState.commit_reviews(_shift.review_points, _shift.review_count)
+	# Did tonight's reviews just cross a rating gate (e.g. parcels at 4.0★)? If so, hand the
+	# freshly-unlocked lines to Main via Game so it can celebrate them — this scene is about
+	# to be freed by the SERVE -> UPGRADE swap, so the banner shows on the next screen.
+	var unlocked: Array = ShiftScript.newly_unlocked_product_ids(rating_before, GameState.best_rating)
+	if not unlocked.is_empty():
+		Game.pending_unlocks = unlocked
 	DayCycle.advance()  # SERVE -> UPGRADE; Main swaps in the next phase scene
 
 

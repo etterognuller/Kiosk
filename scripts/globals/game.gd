@@ -14,6 +14,12 @@ const OfflineEarningsScript := preload("res://scripts/offline_earnings.gd")
 ## not part of the save.
 var last_offline_report: Dictionary = {}
 
+## Product ids whose rating gate a just-ended shift crossed (e.g. ["parcels"] at 4.0★),
+## or [] for none. serve.gd sets it the moment best_rating rises; Main consumes it on the
+## next phase change to pop a one-shot "new line unlocked" celebration, then clears it. A
+## cross-scene handoff (the SERVE screen is freed before the banner shows). Transient.
+var pending_unlocks: Array = []
+
 
 func _ready() -> void:
 	# Load a previous save if one exists so day/money/stock carry over; otherwise

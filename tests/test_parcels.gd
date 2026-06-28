@@ -108,6 +108,32 @@ func test_locked_parcels_never_arrive_in_a_shift() -> void:
 		assert_true(c.product_id != PARCEL, "no parcel customer arrives while locked")
 
 
+func test_crossing_4_stars_newly_unlocks_parcels() -> void:
+	# The one-shot unlock celebration keys off this: a shift that lifts best_rating from
+	# below the gate to at-or-above it reports the parcel line as newly unlocked.
+	var crossed := ShiftScript.newly_unlocked_product_ids(3.9, 4.0)
+	assert_true(crossed.has(PARCEL), "parcels are newly unlocked when the rating crosses 4.0★")
+
+
+func test_no_unlock_when_the_gate_was_already_cleared() -> void:
+	# Sticky gate: once you're past 4.0★, climbing further re-celebrates nothing — the
+	# parcel line isn't "newly" unlocked a second time.
+	var crossed := ShiftScript.newly_unlocked_product_ids(4.2, 4.6)
+	assert_true(crossed.is_empty(), "no re-unlock once the gate is already cleared")
+
+
+func test_no_unlock_when_the_rating_stays_below_the_gate() -> void:
+	# A good-but-not-great climb that never reaches 4.0★ unlocks nothing.
+	var crossed := ShiftScript.newly_unlocked_product_ids(2.0, 3.8)
+	assert_true(crossed.is_empty(), "no unlock while the rating stays under the gate")
+
+
+func test_parcels_carry_unlock_celebration_copy() -> void:
+	# The gated line supplies its own celebration blurb so Main's banner is data-driven.
+	assert_true(ShiftScript.PRODUCTS[PARCEL].has("unlock_blurb"), "parcels have unlock_blurb copy")
+	assert_true(String(ShiftScript.PRODUCTS[PARCEL]["unlock_blurb"]).length() > 0, "blurb is non-empty")
+
+
 func test_parcel_stock_survives_save_round_trip() -> void:
 	var gs = GameStateScript.new()
 	gs.stock[PARCEL] = 7
