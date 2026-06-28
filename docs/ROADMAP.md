@@ -58,6 +58,8 @@ Built only once the core and the active→idle shift are proven. Each is a futur
 its own ADR(s):
 
 - **Expansion:** deepen → chain → vertical; maxing stores; multiple store types.
+  *Scoped in [ADR-0002](adr/0002-expansion-chain-of-stores.md) (chain-of-stores model);
+  first slices tracked as GitHub issues #7+.*
 - **Two-currency economy:** clean vs. dirty money.
 - **Illegal layer:** fronts, laundering, managed heat, the narrative reveal and protagonist.
 - **Ascension/prestige:** reset for points + permanent upgrade tree.
