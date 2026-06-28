@@ -3,6 +3,8 @@ extends Control
 ## current phase's screen, swapping it whenever DayCycle reports a phase change.
 ## This is the visible proof that the day loop is wired end to end.
 
+const StoreRating := preload("res://scripts/store_rating.gd")
+
 @onready var _day_label: Label = %DayLabel
 @onready var _money_label: Label = %MoneyLabel
 @onready var _reputation_label: Label = %ReputationLabel
@@ -73,5 +75,7 @@ func _on_phase_changed(phase: int) -> void:
 func _refresh_hud() -> void:
 	_day_label.text = "Day %d" % GameState.day
 	_money_label.text = "%d kr" % GameState.money
-	_reputation_label.text = "Rep %d" % GameState.reputation
+	# Trustpilot-style rating: Unrated until the first review, then a star row + the
+	# exact decimal + the review count (StoreRating owns the formatting).
+	_reputation_label.text = StoreRating.summary(GameState.review_points, GameState.review_count)
 	_phase_label.text = DayCycle.phase_name()

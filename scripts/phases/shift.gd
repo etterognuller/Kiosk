@@ -23,6 +23,10 @@ signal customer_left(customer)               ## patience expired, or a stockout
 signal prep_changed(progress: int, total: int) ## hot dog prep state for the active customer
 signal shift_ended()                         ## fires exactly once, when the wave is done
 
+## Pulled in for the review scoring + floor (REVIEW_LOST). The rating math itself
+## lives in StoreRating; Shift just records each review into the injected state.
+const StoreRating := preload("res://scripts/store_rating.gd")
+
 ## v1 product catalog. Prices are placeholder tuning (CONTEXT.md defers numbers).
 ## `prep` marks the light-prep path (hot dog) vs an instant grab-and-ring sale.
 const PRODUCTS := {
@@ -31,9 +35,10 @@ const PRODUCTS := {
 	"hotdog": {"label": "Hot dog", "price": 12, "prep": true, "prep_hint": "bun → sausage → hand over"},
 	# Pakkeshop parcel line (issue #4): an instant grab-and-ring sale, no prep —
 	# the signature Danish kiosk staple. Placeholder price (CONTEXT.md), kept above
-	# its wholesale cost so it turns a margin. Appended last so the existing
-	# deterministic spawn rotation (and the tests pinned to it) are unchanged.
-	"parcels": {"label": "Parcel", "price": 8, "prep": false},
+	# its wholesale cost so it turns a margin. Rating-gated: the forwarders only set up
+	# once the store has earned a 4.0★ reputation (see unlocked_product_ids; the gate is
+	# sticky via GameState.best_rating). Placeholder threshold (CONTEXT.md) — flag for F5.
+	"parcels": {"label": "Parcel", "price": 8, "prep": false, "requires_rating": 4.0},
 	# Second product tier (issue #5): coffee — a higher-value signature item that
 	# reuses the light-prep mechanic (its own flavour hint, same PREP_STEPS depth).
 	# Premium retail above the hot dog; placeholder tuning (CONTEXT.md). Available
@@ -57,20 +62,28 @@ const DEFAULT_WAVE_SIZE := 8        ## customers per shift (the fixed-wave end c
 const DEFAULT_SPAWN_INTERVAL := 2.5 ## seconds between arrivals
 const DEFAULT_PATIENCE := 10.0      ## seconds a customer waits before leaving
 
-## Reputation movement, in points on GameState's 0..100 satisfaction scale. A serve
-## nudges it up; a lost sale (stockout or an expired patience timer) nudges it down a
-## little harder, so keeping stock in and the line moving is what holds the meter up.
-## Clamped to [REP_MIN, REP_MAX] — it never triggers a fail state and never drops
-## below the floor (CONTEXT.md: no-fail / cozy). Placeholder tuning; flag for a feel
-## pass. Concrete downstream effects of reputation are intentionally out of scope here.
-const REP_PER_SERVE := 1
-const REP_PER_LOST_SALE := 2
-const REP_MIN := 0
-const REP_MAX := 100
+## Customer reviews drive the store rating (Reputation v2). Every resolved customer
+## leaves exactly one review: a served customer's score scales with how promptly they
+## were served (StoreRating.review_for_served), a lost sale — stockout or an expired
+## patience timer — scores the floor (StoreRating.REVIEW_LOST). The score values and
+## the rating math live in StoreRating; Shift just records each review into the
+## injected state's running totals. No clamp / fail state — a bad run simply earns low
+## reviews (CONTEXT.md: no-fail / cozy). The rating has no downstream effect yet.
 
 var wave_size: int = DEFAULT_WAVE_SIZE
 var spawn_interval: float = DEFAULT_SPAWN_INTERVAL
 var patience: float = DEFAULT_PATIENCE
+
+## The product ids customers can want this shift, in spawn-rotation order. Defaults to
+## the whole catalog (set in _init); serve.gd narrows it to the rating-unlocked set so a
+## locked line (parcels below 4.0★) never spawns a customer. Set before start().
+var available_products: Array = []
+
+## This shift's running review tally (kept here like served_count / lost_sales). serve.gd
+## folds it into GameState's lifetime totals when the shift ends — reviews are summed at
+## day's end, not applied live (Reputation v2).
+var review_points: int = 0
+var review_count: int = 0
 
 ## When false, tick() stops spawning new arrivals — a test seam so serve/patience
 ## logic can be exercised on a hand-built queue. The scene always leaves it true.
@@ -100,6 +113,7 @@ var _started: bool = false
 
 func _init(state) -> void:
 	_state = state
+	available_products = PRODUCTS.keys()  # full catalog by default; serve.gd narrows it
 
 
 ## Begin the shift; the first customer arrives immediately.
@@ -138,6 +152,18 @@ func active_customer() -> Customer:
 	return queue[0] if not queue.is_empty() else null
 
 
+## The product ids unlocked at `rating`, in catalog order. A product with no
+## "requires_rating" is always available; a gated one (e.g. parcels at 4.0★) appears
+## only once the rating reaches its threshold. serve.gd / procure pass the sticky
+## GameState.best_rating, so an unlock, once earned, stays. Pure catalog query.
+static func unlocked_product_ids(rating: float) -> Array:
+	var ids: Array = []
+	for id in PRODUCTS:
+		if rating >= float(PRODUCTS[id].get("requires_rating", 0.0)):
+			ids.append(id)
+	return ids
+
+
 ## Attempt to serve `product_id` to the active customer. Returns true on a sale.
 ## Input-method agnostic: click, drag, or an auto-serve clerk all route here.
 func serve(product_id: String) -> bool:
@@ -155,7 +181,7 @@ func serve(product_id: String) -> bool:
 		# Stockout: a lost sale, never a negative balance. The customer leaves unhappy.
 		queue.pop_front()
 		lost_sales += 1
-		_adjust_reputation(-REP_PER_LOST_SALE)
+		_record_review(StoreRating.REVIEW_LOST)
 		customer_left.emit(c)
 		_reset_prep()
 		_check_end()
@@ -165,7 +191,10 @@ func serve(product_id: String) -> bool:
 	_state.money += price
 	_state.stock[product_id] = on_hand - 1
 	served_count += 1
-	_adjust_reputation(REP_PER_SERVE)
+	# Promptness-scaled review: a customer served with patience to spare leaves a
+	# better score than one served as their patience ran out.
+	var promptness := c.patience / c.max_patience if c.max_patience > 0.0 else 1.0
+	_record_review(StoreRating.review_for_served(promptness))
 	queue.pop_front()
 	customer_served.emit(c, price)
 	_reset_prep()
@@ -195,9 +224,10 @@ func total_arrived() -> int:
 
 
 func _spawn_customer() -> void:
-	var ids := PRODUCTS.keys()
-	# Deterministic rotation through the catalog — easy to read and to test; a
-	# little randomness can come later when tuning feel.
+	var ids := available_products
+	# Deterministic rotation through the unlocked products — easy to read and to test; a
+	# little randomness can come later when tuning feel. Locked lines aren't in `ids`,
+	# so their customers never arrive.
 	var pid: String = ids[_spawned % ids.size()]
 	var c := Customer.new(pid, patience)
 	queue.append(c)
@@ -214,18 +244,19 @@ func _remove_customer(index: int, lost: bool) -> void:
 	queue.remove_at(index)
 	if lost:
 		lost_sales += 1
-		_adjust_reputation(-REP_PER_LOST_SALE)
+		_record_review(StoreRating.REVIEW_LOST)
 		customer_left.emit(c)
 	if index == 0:
 		_reset_prep()  # the active customer changed
 
 
-## Nudge reputation by `delta`, clamped to [REP_MIN, REP_MAX]. Written through the
-## injected state like money/stock, so it persists and unit-tests without the
-## autoload graph. The clamp is the no-fail floor/ceiling: reputation never goes
-## negative and never triggers a game-over, it just sits at the floor on a bad run.
-func _adjust_reputation(delta: int) -> void:
-	_state.reputation = clampi(int(_state.reputation) + delta, REP_MIN, REP_MAX)
+## Record one customer review into THIS shift's tally (Reputation v2). Reviews are not
+## applied live — serve.gd folds this tally into GameState's lifetime totals when the
+## shift ends, so the displayed rating is a stable daily verdict, not a twitchy live
+## number. No clamp: the rating is a Bayesian average of the totals (see StoreRating).
+func _record_review(stars: int) -> void:
+	review_points += stars
+	review_count += 1
 
 
 func _reset_prep() -> void:

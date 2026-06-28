@@ -78,6 +78,12 @@ CC0 pixel art now, custom art later** (drawing it all by hand is the dream, not 
 - **Shift** — the active, real-time serving portion of a day.
 - **Light prep** — the short multi-step preparation for signature items (hot dog, coffee)
   before a customer can be served.
+- **Store rating** — the shop's customer score, shown Trustpilot-style as 1–5 stars. A
+  Bayesian average of per-customer reviews (a prompt serve scores high, a lost sale scores
+  low), summed at day's end; a fresh store is *Unrated* and earns its rating through service.
+  Rating gates content: a line like the parcel pakkeshop only unlocks once the store's
+  best-ever rating earns it (sticky — it won't re-lock). Further payoff (a popularity
+  currency, volume) is deferred (see ROADMAP "Later").
 - **Clerk / staff** — hired workers who automate serving or restocking; the bridge from
   active play to idle.
 - **Clean money** — ordinary, spendable currency from legitimate sales.

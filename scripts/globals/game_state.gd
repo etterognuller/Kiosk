@@ -8,27 +8,33 @@ extends Node
 ## gameplay logic — it just holds state and reads/writes the save file.
 
 const SAVE_PATH := "user://savegame.json"
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
+
+## Used only by commit_reviews to recompute best_rating from the review totals.
+const StoreRating := preload("res://scripts/store_rating.gd")
 
 ## Placeholder starting values. Real economic tuning is deferred (CONTEXT.md).
 const STARTING_MONEY := 50
-
-## Reputation (customer satisfaction) starts neutral on a 0..100 scale, so it reads
-## like a satisfaction percentage and has clear headroom both ways. Placeholder
-## tuning (CONTEXT.md); the clamp range lives with the movement logic in Shift.
-const STARTING_REPUTATION := 50
 
 ## Clean money, in Danish kroner. (Dirty money / two-currency economy is a
 ## later-phase concern and intentionally absent in v1.)
 var money: int = STARTING_MONEY
 
-## Customer satisfaction, 0..100. Soft pressure only — a low number slows progress
-## but never ends the game (CONTEXT.md: no-fail / cozy). Moved by Shift (a serve
-## raises it, a lost sale lowers it); downstream effects (tips, spawn rate) are a
-## later concern. It is a second number the player wants to keep high.
-## Later (ROADMAP "Polish"): present this as a 1..5 star rating (Trustpilot-style)
-## for realism — a display mapping over this same stored number, not a model change.
-var reputation: int = STARTING_REPUTATION
+## The store's customer rating, stored as running review totals (Reputation v2). The
+## displayed rating is a Bayesian average of all reviews ever — the mapping lives in
+## StoreRating (scripts/store_rating.gd); this model only holds the sum of whole-star
+## review scores and how many reviews have landed. A fresh store is Unrated (zero
+## reviews) and earns its rating through service: Shift records one review per resolved
+## customer (a prompt serve scores high, a lost sale scores 1). The rating has no
+## mechanical effect yet — popularity, volume, and upgrades-via-popularity are deferred.
+var review_points: int = 0
+var review_count: int = 0
+
+## Sticky best-ever rating, used to gate rating-locked content (e.g. the parcel line
+## needs 4.0★). Gating reads this rather than the live rating so an unlock can't be lost
+## to a later dip — once the parcel forwarders set up shop, they stay. Updated in
+## commit_reviews; only ever rises. Persisted.
+var best_rating: float = 0.0
 
 ## The current day number. Days are the run / save / idle unit.
 var day: int = 1
@@ -57,18 +63,32 @@ var last_saved_unix: int = 0
 ## Reset to a fresh game. Called when there is no save to load.
 func reset() -> void:
 	money = STARTING_MONEY
-	reputation = STARTING_REPUTATION
+	review_points = 0
+	review_count = 0
+	best_rating = 0.0
 	day = 1
 	stock = {"cigarettes": 0, "soda": 0, "hotdog": 0, "parcels": 0, "coffee": 0}
 	upgrades = {"counter_space": 0, "second_counter": 0, "loyalty_cards": 0, "clerk": 0}
 	last_saved_unix = 0
 
 
+## Fold one shift's batch of reviews into the lifetime totals (Reputation v2: reviews
+## are summed at the end of the day, not applied live). serve.gd calls this once when
+## the shift ends, with the Shift's own tally. best_rating tracks the peak so unlocks
+## stay sticky.
+func commit_reviews(points: int, count: int) -> void:
+	review_points += points
+	review_count += count
+	best_rating = maxf(best_rating, StoreRating.rating(review_points, review_count))
+
+
 func to_dict() -> Dictionary:
 	return {
 		"version": SAVE_VERSION,
 		"money": money,
-		"reputation": reputation,
+		"review_points": review_points,
+		"review_count": review_count,
+		"best_rating": best_rating,
 		"day": day,
 		"stock": stock,
 		"upgrades": upgrades,
@@ -78,7 +98,9 @@ func to_dict() -> Dictionary:
 
 func from_dict(data: Dictionary) -> void:
 	money = int(data.get("money", money))
-	reputation = int(data.get("reputation", reputation))
+	review_points = int(data.get("review_points", review_points))
+	review_count = int(data.get("review_count", review_count))
+	best_rating = float(data.get("best_rating", best_rating))
 	day = int(data.get("day", day))
 	stock = data.get("stock", stock)
 	upgrades = data.get("upgrades", upgrades)

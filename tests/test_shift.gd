@@ -6,13 +6,14 @@ extends "res://tests/test_case.gd"
 
 const ShiftScript := preload("res://scripts/phases/shift.gd")
 const DayCycleScript := preload("res://scripts/globals/day_cycle.gd")
+const StoreRating := preload("res://scripts/store_rating.gd")
 
 
-## A minimal stand-in for GameState: just the fields Shift reads/writes.
+## A minimal stand-in for GameState: just the fields Shift reads/writes. (Reviews are
+## tallied on the Shift itself now, not the state, so they're not here.)
 class StateStub extends RefCounted:
 	var money: int = 0
 	var stock: Dictionary = {}
-	var reputation: int = 50
 
 
 func _isolated(stock: Dictionary) -> Array:
@@ -89,65 +90,71 @@ func test_patience_expiry_is_a_lost_sale() -> void:
 	assert_eq(shift.served_count, 0, "nothing served")
 
 
-func test_serve_raises_reputation() -> void:
-	var pair := _isolated({"soda": 1})
-	var shift = pair[0]
-	var state = pair[1]
-	state.reputation = 50
+func test_prompt_serve_records_a_top_review() -> void:
+	# Reviews tally on the Shift (committed to GameState at day's end, not live).
+	var shift = _isolated({"soda": 1})[0]
+	# Full patience remaining at serve time -> the happiest review.
 	shift.queue = [ShiftScript.Customer.new("soda", 10.0)]
 	assert_true(shift.serve("soda"), "served")
-	assert_eq(state.reputation, 50 + ShiftScript.REP_PER_SERVE, "a serve nudged reputation up")
+	assert_eq(shift.review_count, 1, "one review on the shift tally")
+	assert_eq(shift.review_points, StoreRating.REVIEW_SERVED_FAST, "a prompt serve scores the top review")
 
 
-func test_stockout_lowers_reputation() -> void:
-	var pair := _isolated({"soda": 0})
-	var shift = pair[0]
-	var state = pair[1]
-	state.reputation = 50
+func test_review_score_scales_with_promptness() -> void:
+	# The same serve at low remaining patience leaves a lower-star review.
+	var shift = _isolated({"soda": 1})[0]
+	var late := ShiftScript.Customer.new("soda", 10.0)
+	late.patience = 2.0  # 20% left -> below the OK threshold -> the slow-serve score
+	shift.queue = [late]
+	assert_true(shift.serve("soda"), "served late")
+	assert_eq(shift.review_points, StoreRating.REVIEW_SERVED_SLOW, "a last-second serve scores low")
+
+
+func test_stockout_records_a_floor_review() -> void:
+	var shift = _isolated({"soda": 0})[0]
 	shift.queue = [ShiftScript.Customer.new("soda", 10.0)]
 	assert_false(shift.serve("soda"), "stockout: no sale")
-	assert_eq(state.reputation, 50 - ShiftScript.REP_PER_LOST_SALE, "a stockout nudged reputation down")
+	assert_eq(shift.review_count, 1, "the unhappy customer still reviewed")
+	assert_eq(shift.review_points, StoreRating.REVIEW_LOST, "a stockout scores the floor review")
 
 
-func test_patience_expiry_lowers_reputation() -> void:
-	var pair := _isolated({"soda": 5})
-	var shift = pair[0]
-	var state = pair[1]
-	state.reputation = 50
+func test_patience_expiry_records_a_floor_review() -> void:
+	var shift = _isolated({"soda": 5})[0]
 	shift.queue = [ShiftScript.Customer.new("soda", 1.0)]
 	shift.tick(2.0)  # the customer's patience runs out -> a lost sale
 	assert_eq(shift.lost_sales, 1, "patience expiry counted as a lost sale")
-	assert_eq(state.reputation, 50 - ShiftScript.REP_PER_LOST_SALE, "an expiry nudged reputation down")
+	assert_eq(shift.review_count, 1, "the customer who left still reviewed")
+	assert_eq(shift.review_points, StoreRating.REVIEW_LOST, "an expiry scores the floor review")
 
 
-func test_reputation_never_drops_below_floor() -> void:
-	# No-fail / cozy: a bad run pins reputation at the floor, never below, never a crash.
-	var pair := _isolated({"soda": 0, "cigarettes": 0})
-	var shift = pair[0]
-	var state = pair[1]
-	state.reputation = 1  # one point above the floor, less than one loss step
-	shift.queue = [
-		ShiftScript.Customer.new("soda", 10.0),
-		ShiftScript.Customer.new("cigarettes", 10.0),
-	]
-	shift.serve("soda")        # stockout -> down, clamps at the floor
-	shift.serve("cigarettes")  # another stockout -> stays at the floor
-	assert_eq(state.reputation, ShiftScript.REP_MIN, "reputation clamped at the floor")
-	assert_true(state.reputation >= 0, "reputation never went negative")
-
-
-func test_reputation_never_exceeds_ceiling() -> void:
-	var pair := _isolated({"soda": 5})
-	var shift = pair[0]
-	var state = pair[1]
-	state.reputation = ShiftScript.REP_MAX  # already maxed
+func test_reviews_accumulate_with_no_clamp() -> void:
+	# The shift's tally just adds up — there is no floor/ceiling (the displayed rating is
+	# a Bayesian average committed to GameState at day's end, computed in StoreRating).
+	var shift = _isolated({"soda": 2})[0]
 	shift.queue = [
 		ShiftScript.Customer.new("soda", 10.0),
 		ShiftScript.Customer.new("soda", 10.0),
 	]
 	shift.serve("soda")
 	shift.serve("soda")
-	assert_eq(state.reputation, ShiftScript.REP_MAX, "reputation clamped at the ceiling")
+	assert_eq(shift.review_count, 2, "two reviews")
+	assert_eq(shift.review_points, 2 * StoreRating.REVIEW_SERVED_FAST, "both prompt serves summed")
+
+
+func test_available_products_restricts_the_spawn_rotation() -> void:
+	# A locked line is absent from available_products, so its customers never arrive —
+	# the spawn rotation only cycles the products it was given.
+	var shift = _isolated({"cigarettes": 99, "soda": 99})[0]
+	shift.auto_spawn = true
+	shift.available_products = ["cigarettes", "soda"]  # hotdog/parcels/coffee excluded
+	shift.wave_size = 6
+	shift.spawn_interval = 0.0
+	shift.start()
+	for i in range(shift.wave_size):
+		shift.tick(0.0)
+	for c in shift.queue:
+		assert_true(c.product_id == "cigarettes" or c.product_id == "soda",
+			"only available products spawn (got %s)" % c.product_id)
 
 
 func test_fixed_wave_ends_and_emits_shift_ended_once() -> void:

@@ -63,8 +63,13 @@ its own ADR(s):
 - **Ascension/prestige:** reset for points + permanent upgrade tree.
 - **Factions:** side with vs. outcompete the criminals.
 - **"Adventures":** define and build the DAVE-style interactive episodes.
+- **Reputation payoff & staff depth:** the store rating ships, and its first *teeth* are in —
+  rating-gated unlocks (the parcel line needs 4.0★, sticky via best-ever rating). Remaining
+  payoff: popularity as a separate currency, points-for-rating, and "more stars → more
+  customers". Plus staff depth: clerk *upgrades* / multiple *staff types* with different stats
+  (faster, higher-quality staff lift the promptness-scored rating).
 - **Polish:** custom pixel art, audio, narrative/dialogue, Danish flavor pass, mobile UI,
-  economic tuning, reputation shown as a 1–5 star rating (Trustpilot-style) for realism.
+  economic tuning.
 
 ---
 

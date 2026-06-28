@@ -8,7 +8,9 @@ const GameStateScript := preload("res://scripts/globals/game_state.gd")
 func test_to_from_dict_round_trip() -> void:
 	var gs = GameStateScript.new()
 	gs.money = 123
-	gs.reputation = 72
+	gs.review_points = 41
+	gs.review_count = 9
+	gs.best_rating = 4.5
 	gs.day = 7
 	gs.stock = {"cigarettes": 4, "soda": 2, "hotdog": 1}
 	var snapshot: Dictionary = gs.to_dict()
@@ -16,29 +18,51 @@ func test_to_from_dict_round_trip() -> void:
 	var restored = GameStateScript.new()
 	restored.from_dict(snapshot)
 	assert_eq(restored.money, 123, "money")
-	assert_eq(restored.reputation, 72, "reputation survived the round-trip")
+	assert_eq(restored.review_points, 41, "review_points survived the round-trip")
+	assert_eq(restored.review_count, 9, "review_count survived the round-trip")
+	assert_eq(restored.best_rating, 4.5, "best_rating survived the round-trip")
 	assert_eq(restored.day, 7, "day")
 	assert_eq(int(restored.stock["soda"]), 2, "stock.soda")
 
 
-func test_fresh_game_initializes_reputation() -> void:
+func test_fresh_game_starts_unrated() -> void:
 	var gs = GameStateScript.new()
-	assert_eq(gs.reputation, GameStateScript.STARTING_REPUTATION, "fresh game starts at neutral reputation")
+	assert_eq(gs.review_count, 0, "fresh game has no reviews")
+	assert_eq(gs.review_points, 0, "fresh game has no review points")
 
 
-func test_reset_restores_reputation() -> void:
+func test_reset_clears_reviews() -> void:
 	var gs = GameStateScript.new()
-	gs.reputation = 3
+	gs.review_points = 30
+	gs.review_count = 7
+	gs.best_rating = 4.2
 	gs.reset()
-	assert_eq(gs.reputation, GameStateScript.STARTING_REPUTATION, "reset returns reputation to its start value")
+	assert_eq(gs.review_count, 0, "reset clears the review count")
+	assert_eq(gs.review_points, 0, "reset clears the review points")
+	assert_eq(gs.best_rating, 0.0, "reset clears the best rating")
 
 
-func test_from_dict_tolerates_missing_reputation() -> void:
-	# Old saves predating the reputation meter lack the key; the default survives.
+func test_commit_reviews_accumulates_and_tracks_peak() -> void:
+	# serve.gd folds a shift's tally in at day's end; best_rating tracks the peak so
+	# rating-gated unlocks stay sticky.
+	var gs = GameStateScript.new()
+	gs.commit_reviews(50, 10)  # a clean opening day: ten 5★ reviews -> ~3.9
+	assert_eq(gs.review_points, 50, "points committed")
+	assert_eq(gs.review_count, 10, "count committed")
+	assert_true(gs.best_rating > 3.8 and gs.best_rating < 4.0, "best_rating ~3.9 after ten 5★ reviews")
+	var peak: float = gs.best_rating
+	gs.commit_reviews(1, 1)  # a 1★ review drags the live rating below the peak
+	assert_eq(gs.review_count, 11, "second batch folded in")
+	assert_true(gs.best_rating >= peak, "best_rating never decreases (sticky unlocks)")
+
+
+func test_from_dict_tolerates_missing_reviews() -> void:
+	# Saves predating Reputation v2 lack the review keys; the unrated default survives.
 	var gs = GameStateScript.new()
 	gs.from_dict({"day": 4})
 	assert_eq(gs.day, 4, "day taken from dict")
-	assert_eq(gs.reputation, GameStateScript.STARTING_REPUTATION, "reputation default kept when absent")
+	assert_eq(gs.review_count, 0, "review_count default kept when absent")
+	assert_eq(gs.review_points, 0, "review_points default kept when absent")
 
 
 func test_to_dict_includes_upgrades() -> void:

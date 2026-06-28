@@ -21,6 +21,15 @@ const FRESH := Color(0.30, 0.78, 0.34)   ## patience-bar colour, full
 const URGENT := Color(0.90, 0.22, 0.22)  ## patience-bar colour, nearly out
 const WANTED := Color(0.62, 1.0, 0.62)   ## highlight for the needed product button
 
+## Clerk on-duty badge (the automation bridge was previously invisible — the clerk
+## silently drained the queue). CLERK_IDLE is the resting tint; each time the clerk
+## actually serves/preps it pulses to CLERK_ACTED and fades back over CLERK_FLASH.
+## Presentation only — it reads ServeDriver, never drives the rules. Needs an F5
+## pass to judge the feel.
+const CLERK_IDLE := Color(0.62, 0.78, 1.0)   ## on-duty, between actions
+const CLERK_ACTED := Color(0.40, 1.0, 0.55)  ## brief pulse when it serves/preps
+const CLERK_FLASH := 0.45                    ## seconds the pulse takes to fade
+
 @onready var _scoreboard: Label = %Scoreboard
 @onready var _queue_line: HBoxContainer = %QueueLine
 @onready var _empty_hint: Label = %EmptyHint
@@ -33,28 +42,33 @@ var _product_buttons: Dictionary = {}  ## product_id -> its serve Button
 var _cards: Dictionary = {}       ## Customer -> card Control
 var _names: Dictionary = {}       ## Customer -> display name
 var _arrivals: int = 0
+var _clerk_label: Label = null    ## "Clerk on duty" badge; null when no clerk is hired
+var _clerk_flash: float = 0.0     ## seconds left on the act-pulse highlight
 
 
 func _ready() -> void:
-	# One serve button per product, built from the catalog — adding a product line
-	# (e.g. the pakkeshop parcel, issue #4) needs only a PRODUCTS entry, no scene
-	# edit. Each routes its click to _serve(id); the hot-dog prep flow is keyed off
-	# PRODUCTS[id].prep inside _serve, so it composes for any prep item.
-	for id in ShiftScript.PRODUCTS:
+	_shift = ShiftScript.new(GameState)
+	var shop = UpgradeShopScript.new(GameState)
+	shop.apply_to_shift(_shift)
+	# Day-driven escalation (issue #2): later days bring a busier wave. Applied on
+	# top of the upgrade tuning so the two compose — a gentle, bounded ramp that
+	# keeps the shift no-fail (CONTEXT.md).
+	_shift.wave_size += DayScalingScript.wave_bonus(GameState.day)
+	# Rating-gated product lines: only products the store's best-ever rating has unlocked
+	# can be wanted or served (e.g. parcels need 4.0★ — see Shift.unlocked_product_ids).
+	# Sticky via GameState.best_rating, so an earned unlock can't be lost to a later dip.
+	var unlocked: Array = ShiftScript.unlocked_product_ids(GameState.best_rating)
+	_shift.available_products = unlocked
+	# One serve button per UNLOCKED product, built from the catalog — adding a product
+	# line needs only a PRODUCTS entry, no scene edit. Each routes its click to
+	# _serve(id); the prep flow is keyed off PRODUCTS[id].prep inside _serve.
+	for id in unlocked:
 		var btn := Button.new()
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.custom_minimum_size = Vector2(0, 72)
 		btn.pressed.connect(_serve.bind(id))
 		_buttons_box.add_child(btn)
 		_product_buttons[id] = btn
-
-	_shift = ShiftScript.new(GameState)
-	var shop = UpgradeShopScript.new(GameState)
-	shop.apply_to_shift(_shift)
-	# Day-driven escalation (issue #2): later days bring a busier wave. Applied on
-	# top of the upgrade tuning so the two compose — a gentle, bounded ramp that
-	# keeps the shift no-fail (CONTEXT.md). The clerk reads its level next.
-	_shift.wave_size += DayScalingScript.wave_bonus(GameState.day)
 	# The clerk reads its hired level once, at shift start: a clerk hired mid-UPGRADE
 	# takes effect the next shift (CONTEXT.md invariant 3: the day is the unit). It is
 	# purely additive — a second caller beside _serve(), never a gate on the buttons.
@@ -63,17 +77,46 @@ func _ready() -> void:
 	_shift.customer_served.connect(_on_customer_served)
 	_shift.customer_left.connect(_on_customer_left)
 	_shift.shift_ended.connect(_on_shift_ended)
+	_maybe_add_clerk_indicator()
 	_shift.start()
 	_refresh()
+
+
+## A "Clerk on duty" badge, shown only when a clerk is hired, so the automation
+## bridge is visible instead of silently draining the queue. Built at runtime (like
+## Main's welcome-back banner) and slotted right under the Header, so the Serve scene
+## file needs no edit. The cadence text tells the player how fast the clerk is; the
+## per-action pulse (driven from _process) shows it working. Presentation only.
+func _maybe_add_clerk_indicator() -> void:
+	if _driver == null or not _driver.is_active():
+		return
+	var vbox: Node = _buttons_box.get_parent()  # Buttons is a direct child of the VBox
+	_clerk_label = Label.new()
+	_clerk_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_clerk_label.text = "● Clerk on duty — lends a hand every %.1fs" % _driver.cadence()
+	_clerk_label.modulate = CLERK_IDLE
+	vbox.add_child(_clerk_label)
+	vbox.move_child(_clerk_label, 1)  # just below the Header row
 
 
 func _process(delta: float) -> void:
 	if _shift == null or _shift.is_over:
 		return
 	_shift.tick(delta)
-	if _driver != null:
-		_driver.tick(delta)
+	# tick() returns true on a frame where the clerk actually served or prepped —
+	# that's the cue to pulse the on-duty badge.
+	if _driver != null and _driver.tick(delta):
+		_clerk_flash = CLERK_FLASH
+	_update_clerk_indicator(delta)
 	_refresh()
+
+
+## Fade the clerk badge from CLERK_ACTED back to CLERK_IDLE after each action.
+func _update_clerk_indicator(delta: float) -> void:
+	if _clerk_label == null:
+		return
+	_clerk_flash = maxf(_clerk_flash - delta, 0.0)
+	_clerk_label.modulate = CLERK_IDLE.lerp(CLERK_ACTED, _clerk_flash / CLERK_FLASH)
 
 
 ## One click on a product. For the hot dog, the click first advances prep (bun ->
@@ -107,6 +150,10 @@ func _on_customer_left(c) -> void:
 
 func _on_shift_ended() -> void:
 	set_process(false)
+	# Reviews are summed at day's end: fold this shift's tally into the lifetime rating
+	# now, before UPGRADE, so the new rating (and any freshly-unlocked tiers) are live on
+	# tonight's UPGRADE screen and tomorrow's PROCURE.
+	GameState.commit_reviews(_shift.review_points, _shift.review_count)
 	DayCycle.advance()  # SERVE -> UPGRADE; Main swaps in the next phase scene
 
 

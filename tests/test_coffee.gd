@@ -16,7 +16,6 @@ const COFFEE := "coffee"
 class StateStub extends RefCounted:
 	var money: int = 0
 	var stock: Dictionary = {}
-	var reputation: int = 50
 
 
 func _shift(stock: Dictionary) -> Array:

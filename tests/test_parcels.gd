@@ -15,7 +15,6 @@ const PARCEL := "parcels"
 class StateStub extends RefCounted:
 	var money: int = 0
 	var stock: Dictionary = {}
-	var reputation: int = 50
 
 
 func test_parcels_are_in_both_catalogs_as_an_instant_good() -> void:
@@ -64,13 +63,13 @@ func test_parcel_stockout_is_a_lost_sale_never_negative() -> void:
 	assert_eq(shift.lost_sales, 1, "registered a lost sale")
 
 
-func test_a_parcel_customer_arrives_during_a_shift() -> void:
-	# The deterministic spawn rotation cycles through every product, so a full wave
-	# eventually wants a parcel — proving parcels are live in the shift, not just
-	# serveable when hand-placed.
+func test_a_parcel_customer_arrives_when_unlocked() -> void:
+	# With parcels available (default catalog), the deterministic rotation cycles through
+	# every product, so a full wave eventually wants a parcel — proving parcels are live
+	# in the shift, not just serveable when hand-placed.
 	var state := StateStub.new()
 	state.stock = {"cigarettes": 99, "soda": 99, "hotdog": 99, PARCEL: 99}
-	var shift = ShiftScript.new(state)
+	var shift = ShiftScript.new(state)  # _init defaults available_products to the full catalog
 	shift.wave_size = ShiftScript.PRODUCTS.size()  # one full lap of the rotation
 	shift.spawn_interval = 0.0
 	shift.start()
@@ -81,6 +80,32 @@ func test_a_parcel_customer_arrives_during_a_shift() -> void:
 		if c.product_id == PARCEL:
 			wants_parcel = true
 	assert_true(wants_parcel, "a parcel-wanting customer appeared in the wave")
+
+
+func test_parcels_locked_until_the_rating_earns_them() -> void:
+	# Forwarders want traction: parcels are out of the unlocked set below 4.0★ and
+	# appear once the (sticky best) rating reaches the threshold.
+	var below := ShiftScript.unlocked_product_ids(3.9)
+	assert_false(below.has(PARCEL), "parcels locked below 4.0★")
+	assert_true(below.has("cigarettes"), "ungated staples are always available")
+	var at := ShiftScript.unlocked_product_ids(4.0)
+	assert_true(at.has(PARCEL), "parcels unlock at 4.0★")
+
+
+func test_locked_parcels_never_arrive_in_a_shift() -> void:
+	# An unrated store excludes parcels from available_products, so no parcel customer
+	# ever spawns — even across two full laps of the rotation.
+	var state := StateStub.new()
+	state.stock = {"cigarettes": 99, "soda": 99, "hotdog": 99, "coffee": 99}
+	var shift = ShiftScript.new(state)
+	shift.available_products = ShiftScript.unlocked_product_ids(0.0)  # unrated -> no parcels
+	shift.wave_size = ShiftScript.PRODUCTS.size() * 2
+	shift.spawn_interval = 0.0
+	shift.start()
+	for i in range(shift.wave_size):
+		shift.tick(0.0)
+	for c in shift.queue:
+		assert_true(c.product_id != PARCEL, "no parcel customer arrives while locked")
 
 
 func test_parcel_stock_survives_save_round_trip() -> void:

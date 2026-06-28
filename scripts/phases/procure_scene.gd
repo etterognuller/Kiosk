@@ -10,6 +10,7 @@ extends Control
 ## opening with zero stock is allowed (it just means lost sales mid-shift).
 
 const ProcureScript := preload("res://scripts/phases/procure.gd")
+const ShiftScript := preload("res://scripts/phases/shift.gd")
 
 @onready var _wallet: Label = %Wallet
 @onready var _rows: VBoxContainer = %Rows
@@ -22,8 +23,13 @@ var _row_labels: Dictionary = {}  ## product_id -> the row's Label
 func _ready() -> void:
 	_logic = ProcureScript.new(GameState)
 	_logic.stock_changed.connect(_refresh)
+	# Only lay out buy rows for products the store's rating has unlocked — a locked line
+	# (parcels below 4.0★) can't be stocked until the forwarders arrive. Sticky via
+	# GameState.best_rating, matching the SERVE screen.
+	var unlocked := ShiftScript.unlocked_product_ids(GameState.best_rating)
 	for id in ProcureScript.CATALOG:
-		_rows.add_child(_make_row(id))
+		if id in unlocked:
+			_rows.add_child(_make_row(id))
 	_open_btn.pressed.connect(DayCycle.advance)  # PROCURE -> SERVE
 	_refresh()
 
